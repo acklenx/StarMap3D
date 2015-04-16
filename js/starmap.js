@@ -1,4 +1,4 @@
-/*global $, Element, Event */
+/*global $ */
 /*
 
  Very, very loosely based on: http://www.soa-world.de/echelon/2008/07/fourth-prototype.html
@@ -24,7 +24,6 @@
  THE SOFTWARE.
  */
 
-
 var PI2, renderer, map, Star;
 
 PI2 = Math.PI * 2;
@@ -37,8 +36,8 @@ renderer = {
         'use strict';
         this.canvas = $('#' + mapname)[0];
         this.ctx = this.canvas.getContext('2d');
-        this.canvasOffsetLeft = Element.viewportOffset(this.canvas).left;
-        this.canvasOffsetTop = Element.viewportOffset(this.canvas).top;
+        this.canvasOffsetLeft = this.canvas.offsetLeft;
+        this.canvasOffsetTop = this.canvas.offsetTop;
     },
     clearCanvas: function () {
         'use strict';
@@ -84,11 +83,13 @@ map = {
     showWormholes: true,
     showNames: true,
     showUnreachable: true,
-    rotateAngle: 0.01,                // angle per rotation in radians
+    rotateAngle: 0.0001,                // angle per rotation in radians
     zScale: 600,                 // value for projecting stars onto canvas
     zHelper: 255 / 600,           // value for depth fading
-    loopTimeout: 10,
-    degree: 0,                   // angle of rotation in radians
+    loopTimeout: 25,
+    degreeX: 0,                   // angle of rotation in radians
+    degreeY: 0,                   // angle of rotation in radians
+    degreeZ: 0,                   // angle of rotation in radians
     selected: -1,                  // indicates which star is selected
     direction: 0,                   // direction of rotation (x is 1, y is 2, z is 3)
     isMoving: false,               // but will be set to true on load
@@ -101,14 +102,22 @@ map = {
         // start continous rotation around y axis
         this.rotateStars(2);
     },
-    draw: function (redraw) {
+    drag: function (canvas, evt) {
+        'use strict';
+        var rect = canvas.getBoundingClientRect(),
+            x = evt.clientX - rect.left,
+            y = evt.clientY - rect.top;
+
+        this.draw(y / map.renderer.canvas.height, x / map.renderer.canvas.width);
+    },
+    draw: function (redraw, x, y) {
         'use strict';
         var that;
 
         if (this.isMoving || redraw) {
             this.renderer.clearCanvas();
 
-            this.drawStars();
+            this.drawStars(x, y);
 
             // draw the selected star (if any)
             if (this.selected !== -1) {
@@ -137,27 +146,32 @@ map = {
             }
         }
     },
-    drawStars: function () {
+    drawStars: function (x, y) {
         'use strict';
         var i, star;
 
         for (i = 0; i < this.stars.length; i += 1) {
             star = this.stars[i];
 
-            switch (this.direction) {
-                case 0:
-                // do nothing
-                case 1:
-                    star.rotateX();
-                    break;
-                case 2:
-                    star.rotateY();
-                    break;
-                case 3:
-                    star.rotateZ();
-                    break;
-                default:
-                    star.rotateX();
+            if (x === undefined && y === undefined) {
+                switch (this.direction) {
+                    case 0:
+                    // do nothing
+                    case 1:
+                        star.rotateX();
+                        break;
+                    case 2:
+                        star.rotateY();
+                        break;
+                    case 3:
+                        star.rotateZ();
+                        break;
+                    default:
+                        star.rotateX();
+                }
+            } else {
+                star.rotateX(Math.sin(x));
+                star.rotateY(Math.sin(y));
             }
 
             star.projectStar();  // calculate renderering coordinates
@@ -185,14 +199,13 @@ map = {
         'use strict';
         this.lastRotationStatus = this.isMoving;
         this.isMoving = false;
-        this.degree = 0;
     },
     restartRotation: function () {
         'use strict';
         // only restart if it was moving last time
         this.isMoving = this.lastRotationStatus;
         if (this.isMoving) {
-            this.rotateStars(2);
+            this.rotateStars(3);
         }
         this.draw();
     },
@@ -200,10 +213,9 @@ map = {
         'use strict';
         if (this.isMoving) {
             this.isMoving = false;
-            this.degree = 0;
         }
         else {
-            this.rotateStars(2);
+            this.rotateStars(3);
         }
         this.draw();
     },
@@ -222,7 +234,7 @@ map = {
         var star = this.stars[index],
             size;
 
-        if (!(!this.showUnreachable && !star.reachable)) {
+        if (this.showUnreachable || star.reachable) {
             this.renderer.drawCircle(star.projectedX, star.projectedY, radius, rgb);
             if (star.current) {
                 this.renderer.drawCurrent(star.projectedX, star.projectedY);
@@ -230,8 +242,8 @@ map = {
             if (this.showNames) {
 
                 // scale the text (larger when closer)
-                size = parseInt(10 * ( 7 + ( 7 * star.projectedZ ) / 255 ), 10) / 10;
-                this.renderer.drawText(star.name, star.projectedX - 20, star.projectedY - 5, size);
+                size = parseInt(star.projectedZ / 35, 10) + 7;
+                this.renderer.drawText(star.name, star.projectedX - 30, star.projectedY - 5, size);
             }
         }
 
@@ -244,7 +256,6 @@ map = {
     },
     rotateStars: function (direction) {
         'use strict';
-        this.degree = this.rotateAngle;
         this.direction = direction;
         if (!this.isMoving) {
             this.isMoving = true;
@@ -273,15 +284,15 @@ map = {
     selectStar: function (event) {
         'use strict';
         var renderer = this.renderer,
-            x = Event.pointerX(event) - renderer.canvasOffsetLeft,
-            y = Event.pointerY(event) - renderer.canvasOffsetTop,
+            x = event.pageX - renderer.canvasOffsetLeft,
+            y = event.pageY - renderer.canvasOffsetTop,
             dist = this.starRadius + 4, // click distance from star center
-            starSelector = $('star_id'),
+            starSelector = $('#star_id'),
             i, star;
 
         this.selected = -1;
 
-        starSelector.update('No star selected');
+        starSelector.text('No star selected');
 
         for (i = 0; i < this.stars.length; i += 1) {
             star = this.stars[i];
@@ -294,9 +305,9 @@ map = {
             ) {
                 this.selected = i;
                 if (0 === star.wormholes) {
-                    starSelector.update('Name: ' + star.name + '<br \/>Type: ' + star.type);
+                    starSelector.html('Name: ' + star.name + '<br \/>Type: ' + star.type);
                 } else {
-                    starSelector.update(
+                    starSelector.html(
                         'Name: ' + star.name +
                         '<br \/>Type: ' + star.type +
                         '<br \/>Wormholes: ' + star.wormholes +
@@ -311,15 +322,19 @@ map = {
 
 Star = function (x, y, z, name, type, numWormholes, numStations, reachable, current) {
     'use strict';
-    this.x = x;
-    this.y = y;
-    this.z = z;
+    this.baseX = x;
+    this.baseY = y;
+    this.baseZ = z;
     this.name = name;
     this.type = type;
     this.wormholes = numWormholes;
     this.stations = numStations;
     this.reachable = reachable;
     this.current = current;
+
+    this.x = 0;
+    this.y = 0;
+    this.z = 0;
 
     this.projectStar = function () {
         this.projectedX = (renderer.canvas.width / 2) + (this.x * map.zScale / (this.z + map.zScale));
@@ -328,69 +343,99 @@ Star = function (x, y, z, name, type, numWormholes, numStations, reachable, curr
     };
 
     // rotate star around x axis
-    this.rotateX = function () {
+    this.rotateX = function (rotateAngle) {
         var currSin, currCos;
 
-        currSin = Math.sin(map.degree);
-        currCos = Math.cos(map.degree);
-        this.y = (this.y * currCos) + (this.z * (-currSin));
-        this.z = (this.y * currSin) + (this.z * currCos);
+        currSin = Math.sin(map.degreeX);
+        currCos = Math.cos(map.degreeX);
+        this.y = (this.baseY * currCos) + (this.baseZ * (-currSin));
+        this.z = (this.baseY * currSin) + (this.baseZ * currCos);
+        this.x = this.baseX;
+
+        if (rotateAngle === undefined) {
+            map.degreeX += map.rotateAngle;
+        } else {
+            map.degreeX += rotateAngle;
+        }
     };
 
     // rotate star around y axis
-    this.rotateY = function () {
+    this.rotateY = function (rotateAngle) {
         var currSin, currCos;
 
-        currSin = Math.sin(map.degree);
-        currCos = Math.cos(map.degree);
-        this.x = (this.x * currCos) + (this.z * currSin);
-        this.z = (this.x * (-currSin)) + (this.z * currCos);
+        currSin = Math.sin(map.degreeY);
+        currCos = Math.cos(map.degreeY);
+        this.x = (this.baseX * currCos) + (this.baseZ * currSin);
+        this.z = (this.baseX * (-currSin)) + (this.baseZ * currCos);
+        this.y = this.baseY;
+
+        if (rotateAngle === undefined) {
+            map.degreeY += map.rotateAngle;
+        } else {
+            map.degreeY += rotateAngle;
+        }
     };
 
     // rotate star around z axis
-    this.rotateZ = function () {
+    this.rotateZ = function (rotateAngle) {
         var currSin, currCos;
 
-        currSin = Math.sin(map.degree);
-        currCos = Math.cos(map.degree);
-        this.x = (this.x * currCos) + (this.y * (-currSin));
-        this.y = (this.x * currSin) + (this.y * currCos);
+        currSin = Math.sin(map.degreeZ);
+        currCos = Math.cos(map.degreeZ);
+        this.x = (this.baseX * currCos) + (this.baseY * (-currSin));
+        this.y = (this.baseX * currSin) + (this.baseY * currCos);
+        this.z = this.baseZ;
+
+        if (rotateAngle === undefined) {
+            map.degreeZ += map.rotateAngle;
+        } else {
+            map.degreeZ += rotateAngle;
+        }
     };
 };
 
-function addEventHandlers() {
+function addEventHandlers(mapname) {
     'use strict';
-    $('toggle_wormholes').on('click', function () {
+    var canvas = document.getElementById(mapname);
+
+    $('#toggle_wormholes').on('click', function () {
         map.toggleWormholes();
     });
-    $('toggle_rotation').on('click', function () {
+    $('#toggle_rotation').on('click', function () {
         map.toggleRotation();
     });
-    $('toggle_names').on('click', function () {
+    $('#toggle_names').on('click', function () {
         map.toggleNames();
     });
-    $('toggle_unreachable').on('click', function () {
+    $('#toggle_unreachable').on('click', function () {
         map.toggleUnreachable();
     });
-    $(map.renderer.canvas).on('click', function (event) {
+    $(map.renderer.canvas).on('mouseup', function (event) {
         map.selectStar(event);
     });
     $(map.renderer.canvas).on('mouseover', function (event) {
         map.stopRotation(event);
-        $('toggle_rotation').checked = false;
+        $('#toggle_rotation').prop('checked', false);
     });
     $(map.renderer.canvas).on('mouseout', function (event) {
         map.restartRotation(event);
-        $('toggle_rotation').checked = map.isMoving;
+        $('#toggle_rotation').prop('checked', map.isMoving);
     });
+
+
+    canvas.addEventListener('mousemove', function (evt) {
+        this.drag(canvas, evt);
+    }, false);
 }
 
 $(document).ready(function () {
     'use strict';
-    map.initialize('starmap');
-    addEventHandlers();
-    $('toggle_wormholes').checked = true;
-    $('toggle_rotation').checked = true;
-    $('toggle_names').checked = true;
-    $('toggle_unreachable').checked = true;
+    var mapname = 'starmap';
+
+    map.initialize(mapname);
+    addEventHandlers(mapname);
+    $('#toggle_wormholes').prop('checked', true);
+    $('#toggle_rotation').prop('checked', true);
+    $('#toggle_names').prop('checked', true);
+    $('#toggle_unreachable').prop('checked', true);
 });
