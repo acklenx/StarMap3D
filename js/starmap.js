@@ -23,7 +23,7 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  THE SOFTWARE.
  */
-
+var runOnce = true;
 var PI2, renderer, map, Star;
 
 PI2 = Math.PI * 2;
@@ -90,9 +90,9 @@ map = {
 	showNames:          true,
 	showUnreachable:    true,
 	rotateAngle:        0.0001,                // angle per rotation in radians
-	zScale:             600,                 // value for projecting stars onto canvas
-	zHelper:            255 / 600,           // value for depth fading
-	loopTimeout:        25,
+	zScale:             800,                 // value for projecting stars onto canvas
+	zHelper:            155 / 600,           // value for depth fading
+	loopTimeout:        1,
 	degreeX:            0,                   // angle of rotation in radians
 	degreeY:            0,                   // angle of rotation in radians
 	degreeZ:            0,                   // angle of rotation in radians
@@ -111,6 +111,7 @@ map = {
 	                    },
 	drag:               function( canvas, evt )
 	                    {
+	                    	return;
 		                    'use strict';
 		                    var rect = canvas.getBoundingClientRect(),
 		                        x    = evt.clientX - rect.left,
@@ -399,8 +400,10 @@ Star = function( x, y, z, name, type, numWormholes, numStations, reachable, curr
 	this.y = 0;
 	this.z = 0;
 
+
 	this.projectStar = function()
 	{
+
 		this.projectedX = (renderer.canvas.width / 2) + (this.x * map.zScale / (this.z + map.zScale));
 		this.projectedY = (renderer.canvas.height / 2) + (this.y * map.zScale / (this.z + map.zScale));
 		this.projectedZ = 255 - Math.round( (this.z + (map.zScale / 2)) * map.zHelper );
@@ -508,7 +511,7 @@ function addEventHandlers( mapname )
 
 	canvas.addEventListener( 'mousemove', function( evt )
 	{
-		this.drag( canvas, evt );
+		map.drag( canvas, evt );
 	}, false );
 }
 
