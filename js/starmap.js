@@ -112,7 +112,14 @@ map = {
     },
     draw: function (redraw, x, y) {
         'use strict';
-        var that;
+
+
+	    var that = this;
+	    window.requestAnimationFrame(function() { that.doDraw(redraw, x, y); } );
+    },
+	doDraw: function(redraw, x, y) {
+
+
 
         if (this.isMoving || redraw) {
             this.renderer.clearCanvas();
