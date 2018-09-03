@@ -92,7 +92,7 @@ map = {
 	rotateAngle:        0.0001,                // angle per rotation in radians
 	zScale:             800,                 // value for projecting stars onto canvas
 	zHelper:            155 / 600,           // value for depth fading
-	loopTimeout:        1,
+	loopTimeout:        5,
 	degreeX:            0,                   // angle of rotation in radians
 	degreeY:            0,                   // angle of rotation in radians
 	degreeZ:            0,                   // angle of rotation in radians
